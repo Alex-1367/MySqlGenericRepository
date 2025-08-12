@@ -199,9 +199,9 @@ Public Class GenericRepository(Of T As Class)
 
     Private Function GetTableName() As String
         Dim type = GetType(T)
-        If type.Name.EndsWith("s") Then
-            Return type.Name.Substring(0, type.Name.Length - 1)
-        End If
+        'If type.Name.EndsWith("s") Then
+        '    Return type.Name.Substring(0, type.Name.Length - 1)
+        'End If
         Return type.Name
     End Function
 
