@@ -154,6 +154,9 @@ Public Class GenericRepository(Of T As Class)
         End Using
     End Function
 
+
+
+
     Public Async Function UpdateAsync(entity As T) As Task Implements IGenericRepository(Of T).UpdateAsync
         Using conn As New MySqlConnection(_connectionString)
             Await conn.OpenAsync()
@@ -200,7 +203,7 @@ Public Class GenericRepository(Of T As Class)
     Private Function GetTableName() As String
         Dim type = GetType(T)
         'If type.Name.EndsWith("s") Then
-        '    Return type.Name.Substring(0, type.Name.Length - 1)
+        'Return type.Name.Substring(0, type.Name.Length - 1)
         'End If
         Return type.Name
     End Function
@@ -210,6 +213,108 @@ Public Class GenericRepository(Of T As Class)
             Where(Function(p) p.CanWrite AndAlso
                   Not p.Name.EndsWith("List", StringComparison.OrdinalIgnoreCase) AndAlso
                   Not _autoManagedFields.Contains(p.Name))
+    End Function
+
+End Class
+
+Public Class GenericRepositoryOverViewy(Of Ttable As Class, Tview As Class)
+    Implements IGenericRepositoryOverView(Of Ttable, Tview)
+
+    Private ReadOnly _connectionString As String
+    Private ReadOnly _keyColumnName As String
+    Private ReadOnly _keyType As Type
+    Private ReadOnly _autoManagedFields As HashSet(Of String)
+
+    Public Sub New(connectionString As String,
+                  Optional keyType As Type = Nothing,
+                  Optional keyColumnName As String = "Id",
+                  Optional SetAutomaticallyByDb As IEnumerable(Of String) = Nothing)
+        _connectionString = connectionString
+        _keyColumnName = keyColumnName
+
+        ' Initialize auto-managed fields
+        _autoManagedFields = If(SetAutomaticallyByDb IsNot Nothing,
+                              New HashSet(Of String)(SetAutomaticallyByDb, StringComparer.OrdinalIgnoreCase),
+                              New HashSet(Of String)(StringComparer.OrdinalIgnoreCase))
+
+        ' Determine key type automatically if not specified
+        If keyType Is Nothing Then
+            Dim idProperty = GetType(Ttable).GetProperties().
+                FirstOrDefault(Function(p) p.Name.Equals(keyColumnName, StringComparison.OrdinalIgnoreCase))
+
+            If idProperty IsNot Nothing Then
+                _keyType = idProperty.PropertyType
+            Else
+                ' Default to Integer if not found
+                _keyType = GetType(Integer)
+            End If
+        Else
+            _keyType = keyType
+        End If
+    End Sub
+
+    Public Async Function InsertAndReturnIdAsync(prm As Tview, Optional excludeProperties As IEnumerable(Of String) = Nothing) As Task(Of Integer) Implements IGenericRepositoryOverView(Of Ttable, Tview).InsertAndReturnIdAsync
+        Using conn As New MySqlConnection(_connectionString)
+            Await conn.OpenAsync()
+            Dim tableName = GetType(Ttable).Name
+
+            ' Get properties of the parameter type that exist in the target table
+            Dim tableProperties = GetType(Ttable).GetProperties().Select(Function(p) p.Name).ToList()
+            Dim viewProperties = GetType(Tview).GetProperties().
+            Where(Function(p) p.CanWrite AndAlso
+                  tableProperties.Contains(p.Name) AndAlso
+                  Not p.Name.Equals(_keyColumnName, StringComparison.OrdinalIgnoreCase) AndAlso
+                  Not _autoManagedFields.Contains(p.Name) AndAlso
+                  Not p.Name.EndsWith("List", StringComparison.OrdinalIgnoreCase))
+
+            ' Exclude additional properties if specified
+            If excludeProperties IsNot Nothing Then
+                viewProperties = viewProperties.Where(Function(p) Not excludeProperties.Contains(p.Name))
+            End If
+
+            Dim columns = String.Join(", ", viewProperties.Select(Function(p) p.Name))
+            Dim values = String.Join(", ", viewProperties.Select(Function(p) $"@{p.Name}"))
+
+            Dim sql = $"INSERT INTO {tableName} ({columns}) VALUES ({values}); SELECT LAST_INSERT_ID();"
+            Return Await conn.ExecuteScalarAsync(Of Integer)(sql, prm)
+        End Using
+    End Function
+
+    Public Async Function DeleteAsync(id As Object) As Task Implements IGenericRepositoryOverView(Of Ttable, Tview).DeleteAsync
+        Dim typedId = Convert.ChangeType(id, _keyType)
+
+        Using conn As New MySqlConnection(_connectionString)
+            Await conn.OpenAsync()
+            Dim tableName = GetType(Ttable).Name
+            Await conn.ExecuteAsync(
+                $"DELETE FROM {tableName} WHERE {_keyColumnName} = @id",
+                New With {.id = typedId})
+        End Using
+    End Function
+
+    Public Async Function UpdateAsync(entity As Tview) As Task Implements IGenericRepositoryOverView(Of Ttable, Tview).UpdateAsync
+        Using conn As New MySqlConnection(_connectionString)
+            Await conn.OpenAsync()
+
+            ' Get the table name for the base table (Restaurants)
+            Dim tableName = GetType(Ttable).Name
+
+            ' Get properties that exist in both the view and the base table
+            Dim tableProperties = GetType(Ttable).GetProperties().Select(Function(p) p.Name).ToList()
+            Dim properties = GetType(Tview).GetProperties().
+            Where(Function(p) p.CanWrite AndAlso
+                  tableProperties.Contains(p.Name) AndAlso
+                  Not p.Name.Equals(_keyColumnName, StringComparison.OrdinalIgnoreCase) AndAlso
+                  Not _autoManagedFields.Contains(p.Name))
+
+            ' Build the SET clause
+            Dim setClause = String.Join(", ",
+            properties.Select(Function(p) $"{p.Name} = @{p.Name}"))
+
+            ' Build and execute the SQL
+            Dim sql = $"UPDATE {tableName} SET {setClause} WHERE {_keyColumnName} = @{_keyColumnName}"
+            Await conn.ExecuteAsync(sql, entity)
+        End Using
     End Function
 
 End Class
