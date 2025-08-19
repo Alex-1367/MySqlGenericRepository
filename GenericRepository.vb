@@ -200,6 +200,15 @@ Public Class GenericRepository(Of T As Class)
         End Using
     End Function
 
+    Public Async Function GetWhereAsync(predicate As Func(Of T, Boolean)) As Task(Of List(Of T)) Implements IGenericRepository(Of T).GetWhereAsync
+        Using conn As New MySqlConnection(_connectionString)
+            Await conn.OpenAsync()
+            Dim tableName = GetTableName()
+            Dim allItems = (Await conn.QueryAsync(Of T)($"SELECT * FROM {tableName}")).ToList()
+            Return allItems.Where(predicate).ToList()
+        End Using
+    End Function
+
     Private Function GetTableName() As String
         Dim type = GetType(T)
         'If type.Name.EndsWith("s") Then
@@ -217,7 +226,7 @@ Public Class GenericRepository(Of T As Class)
 
 End Class
 
-Public Class GenericRepositoryOverViewy(Of Ttable As Class, Tview As Class)
+Public Class GenericRepositoryOverView(Of Ttable As Class, Tview As Class)
     Implements IGenericRepositoryOverView(Of Ttable, Tview)
 
     Private ReadOnly _connectionString As String
