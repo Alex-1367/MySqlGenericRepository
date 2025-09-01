@@ -1,4 +1,5 @@
-﻿Imports MySql.Data.MySqlClient
+﻿Imports System.Linq.Expressions
+Imports MySql.Data.MySqlClient
 
 Public Interface IGenericRepository(Of T As Class)
     Function GetAll() As List(Of T)
@@ -15,10 +16,11 @@ Public Interface IGenericRepository(Of T As Class)
     Function DeleteAsync(id As Object) As Task
     Function GetCountAsync() As Task(Of Integer)
     Function GetAllWithProgressAsync(progressCallback As Action(Of Integer, Integer)) As Task(Of List(Of T))
+    Function GetFilteredWithProgressAsync(pwhereClause As String, parameters As Object, progressCallback As Action(Of Integer, Integer)) As Task(Of List(Of T))
     Function GetWhereAsync(predicate As Func(Of T, Boolean)) As Task(Of List(Of T))
 End Interface
 
-    Public Interface IGenericRepositoryOverView(Of Ttable As Class, Tview As Class)
+Public Interface IGenericRepositoryOverView(Of Ttable As Class, Tview As Class)
     Function InsertAndReturnIdAsync(prm As Tview, Optional excludeProperties As IEnumerable(Of String) = Nothing) As Task(Of Integer)
     Function DeleteAsync(id As Object) As Task
     Function UpdateAsync(entity As Tview) As Task

@@ -3,6 +3,8 @@ Imports System.Collections.Generic
 Imports System.Threading.Tasks
 Imports System.Runtime.CompilerServices
 Imports System.Reflection
+Imports System.Linq.Expressions
+Imports Org.BouncyCastle.Crypto
 
 Public Class GenericRepository(Of T As Class)
     Implements IGenericRepository(Of T)
@@ -197,6 +199,14 @@ Public Class GenericRepository(Of T As Class)
             Return Await conn.QueryWithProgressAsync(Of T)(
             $"SELECT * FROM {GetTableName()}",
             progressCallback)
+        End Using
+    End Function
+
+    Public Async Function GetFilteredWithProgressAsync(whereClause As String, parameters As Object, progressCallback As Action(Of Integer, Integer)) As Task(Of List(Of T)) Implements IGenericRepository(Of T).GetFilteredWithProgressAsync
+        Using conn As New MySqlConnection(_connectionString)
+            Await conn.OpenAsync()
+            Dim sql = $"SELECT * FROM {GetTableName()} WHERE {whereClause}"
+            Return Await conn.QueryWithProgressAsync(Of T)(sql, progressCallback, 100, parameters)
         End Using
     End Function
 
