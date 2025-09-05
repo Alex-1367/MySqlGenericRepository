@@ -22,6 +22,7 @@ End Interface
 
 Public Interface IGenericRepositoryOverView(Of Ttable As Class, Tview As Class)
     Function InsertAndReturnIdAsync(prm As Tview, Optional excludeProperties As IEnumerable(Of String) = Nothing) As Task(Of Integer)
+    Function GetAllWithProgressAsync(progressCallback As Action(Of Integer, Integer)) As Task(Of List(Of Tview))
     Function DeleteAsync(id As Object) As Task
     Function UpdateAsync(entity As Tview) As Task
 End Interface
