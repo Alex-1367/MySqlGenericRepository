@@ -156,9 +156,6 @@ Public Class GenericRepository(Of T As Class)
         End Using
     End Function
 
-
-
-
     Public Async Function UpdateAsync(entity As T) As Task Implements IGenericRepository(Of T).UpdateAsync
         Using conn As New MySqlConnection(_connectionString)
             Await conn.OpenAsync()
@@ -356,6 +353,40 @@ Public Class GenericRepositoryOverView(Of Ttable As Class, Tview As Class)
             Dim results = (Await connection.QueryAsync(Of Tview)(query)).ToList()
 
             ' Simulate progress since we can't get row-by-row updates with Dapper QueryAsync
+            For i As Integer = 1 To 10
+                Dim progress = i * 10
+                Dim currentCount = CInt((progress / 100) * totalRecords)
+                progressCallback?.Invoke(progress, currentCount)
+                Await Task.Delay(50)
+            Next
+
+            progressCallback?.Invoke(100, totalRecords)
+
+            Return results
+        End Using
+    End Function
+
+    Public Async Function GetFilteredWithProgressAsync(pwhereClause As String, parameters As Object, progressCallback As Action(Of Integer, Integer)) As Task(Of List(Of Tview))
+        Dim results As New List(Of Tview)()
+
+        Using connection As New MySqlConnection(_connectionString)
+            Await connection.OpenAsync()
+
+            ' Get total count
+            Dim viewName = GetType(Tview).Name
+            Dim countQuery = $"SELECT COUNT(*) FROM {viewName} WHERE {pwhereClause}"
+            Dim totalRecords As Integer = Await connection.ExecuteScalarAsync(Of Integer)(countQuery, parameters)
+
+            If totalRecords = 0 Then
+                progressCallback?.Invoke(100, 0)
+                Return results
+            End If
+
+            ' Get filtered records
+            Dim query = $"SELECT * FROM {viewName} WHERE {pwhereClause}"
+            results = (Await connection.QueryAsync(Of Tview)(query, parameters)).ToList()
+
+            ' Simulate progress
             For i As Integer = 1 To 10
                 Dim progress = i * 10
                 Dim currentCount = CInt((progress / 100) * totalRecords)
